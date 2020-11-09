@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Pattern;
 
 public class Receiver {
 
@@ -24,21 +25,23 @@ public class Receiver {
         Channel channel;
         try (Connection connection = factory.newConnection()) {
             channel = connection.createChannel();
+            channel.queueDeclare(queue, true, false, false, null);
+            System.out.println(" [*] Waiting for messages. To exit press CTRL+C");
+
+            DeliverCallback deliverCallback = (consumerTag, delivery) -> {
+
+                String message = new String(delivery.getBody(), StandardCharsets.UTF_8);
+                try {
+                    handleMessage(message);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            };
+            channel.basicConsume(queue, true, deliverCallback, consumerTag -> { });
         }
 
-        channel.queueDeclare(queue, true, false, false, null);
-        System.out.println(" [*] Waiting for messages. To exit press CTRL+C");
 
-        DeliverCallback deliverCallback = (consumerTag, delivery) -> {
 
-            String message = new String(delivery.getBody(), StandardCharsets.UTF_8);
-            try {
-                handleMessage(message);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        };
-        channel.basicConsume(queue, true, deliverCallback, consumerTag -> { });
     }
 
     private static void handleMessage(String message) throws Exception {
@@ -61,7 +64,13 @@ public class Receiver {
             System.out.println("Enter name");
             String name = scanner.next();
             System.out.println("Enter email");
+
             String email = scanner.next();
+            while(!email.matches("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$")){
+                System.out.println("Please enter a valid email");
+                email = scanner.next();
+            }
+
             BookingDTO data = new BookingDTO(name,email,id);
             Sender.sendBookingConfirmation(gson.toJson(data));
         }
